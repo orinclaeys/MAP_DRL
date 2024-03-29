@@ -20,7 +20,7 @@ EPS_DECAY = 1000
 TAU = 0.005
 LR = 1e-4
 MEMORYCAPACITY = 2000
-EPISODES = 200
+EPISODES = 2000
 #
 CPU_PATHS     = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3CPU.txt']
 MEMORY_PATHS  = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3MEMORY.txt']
@@ -92,19 +92,24 @@ class Agent(object):
         self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=LR, amsgrad=True)
         self.memory = ReplayMemory(MEMORYCAPACITY)
         self.steps_done = 0
+        self.current = 0
     
     # Method to chose an action base on a the current state as input. The action can be random or calculated by the policy_network based on epsilon
-    def select_action(self, state):
-        sample = random.random()
-        eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-            math.exp(-1. * self.steps_done / EPS_DECAY)
-        self.steps_done += 1
+    def select_action(self, state, training=False):
+        if training is True:
+            sample = random.random()
+            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+                math.exp(-1. * self.steps_done / EPS_DECAY)
+            self.steps_done += 1
+            print("step:" + str(self.steps_done)+ "->" + "epsilon: " + str(eps_threshold))
 
-        if sample > eps_threshold:
-            with torch.no_grad():
-                return self.policy_net(state).max(1).indices.view(1,1)
+            if sample > eps_threshold:
+                with torch.no_grad():
+                    return self.policy_net(state).max(1).indices.view(1,1)
+            else:
+                return torch.tensor([[random.choice(action_space)]], device=DEVICE, dtype=torch.long)
         else:
-            return torch.tensor([[random.choice(action_space)]], device=DEVICE, dtype=torch.long)
+            return self.policy_net(state).max(1).indices.view(1,1)
 
     # Method to optimize the model    
     def optimize_model(self):
@@ -196,44 +201,46 @@ class Agent(object):
                     value = float(match.group())
                     if i==1:
                         obu_latency = value
+        if self.current == 2:
+            obu_latency = 50
         
         state = State(rsu1_cpu, rsu1_mem, rsu1_pow, rsu2_cpu, rsu2_mem, rsu2_pow, rsu3_cpu, rsu3_mem, rsu3_pow, obu_latency)
         return state
     
     #Method to perform an action
     def doAction(self, action):
-        print('Moving to RSU'+ str(action+1))
+        print('Moving to RSU'+ str(action.item()+1))
         time.sleep(0.5)
-
+        self.current = action.item()+1
         new_state = self.getState()
+        
+
         reward = calcReward1(new_state.OBU_latency)
-        print(reward)
         return new_state, reward
 
     # Method for training the Agent
     def train(self):
         for i_episode in range(EPISODES):
-            for t in count():
-                state = self.getState()
-                state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
-                action = self.select_action(state)
-                observation, reward = self.doAction(action)
-                reward = torch.tensor([reward], device=DEVICE)
+            state = self.getState()
+            state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
+            action = self.select_action(state, True)
+            observation, reward = self.doAction(action)
+            reward = torch.tensor([reward], device=DEVICE)
 
-                next_state = torch.tensor(observation, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+            next_state = torch.tensor(observation, dtype=torch.float32, device=DEVICE).unsqueeze(0)
 
-                # Store transition in memory
-                self.memory.push(state, action, next_state, reward)
+            # Store transition in memory
+            self.memory.push(state, action, next_state, reward)
 
-                # Perform one step of the optimization (on the policy network)
-                self.optimize_model()
+            # Perform one step of the optimization (on the policy network)
+            self.optimize_model()
 
-                # Soft update of the target network's weights
-                target_net_state_dict = self.target_net.state_dict()
-                policy_net_state_dict = self.policy_net.state_dict()
-                for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
-                self.target_net.load_state_dict(target_net_state_dict)
+            # Soft update of the target network's weights
+            target_net_state_dict = self.target_net.state_dict()
+            policy_net_state_dict = self.policy_net.state_dict()
+            for key in policy_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
+            self.target_net.load_state_dict(target_net_state_dict)
         
         # After training, save the weights in a file
         self.saveWeights()
@@ -250,6 +257,12 @@ class Agent(object):
 
 test_agent = Agent()
 test_agent.train()
+validation_agent = Agent()
+validation_agent.loadWeights()
+for i in range(10):
+    state = validation_agent.getState()
+    state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
+    print("Decision: RSU"+str(validation_agent.select_action(state).item()+1))
 
 
 
