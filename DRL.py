@@ -22,7 +22,7 @@ EPS_DECAY = 1000
 TAU = 0.005
 LR = 1e-4
 MEMORYCAPACITY = 2000
-EPISODES = 4000
+EPISODES = 1000
 #
 CPU_PATHS     = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3CPU.txt']
 MEMORY_PATHS  = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3MEMORY.txt']
@@ -42,11 +42,18 @@ State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_power', 'RSU2_cpu', '
 
 # Functions for reward & punishment calculation
 def calcReward1(latency):
-    """Implements the first reward function"""
+    """Implements the first reward function (see docs)"""
     if latency < latency_desired:
         reward = 100
     else:
         reward = latency_desired-latency
+    return reward
+
+def calcReward2(oldLatency, newLatency, oldApplication, newApplication):
+    """Implements the second reward function (see docs)"""
+    reward = oldLatency - newLatency
+    if oldLatency < latency_desired and oldApplication!=newApplication:
+        reward = -50
     return reward
 
 # ReplayMemory class
@@ -94,15 +101,26 @@ class Tracker():
         self.average = deque([],50)
     
     def addEpsilon(self,t, epsilon):
+        """Add an epsilon value to the tracker"""
         self.epsilonT.append(t)
         self.epsilonValues.append(epsilon)
     
     def addReward(self,t,reward):
+        """Add a reward value to the tracker"""
         self.rewardsT.append(t)
         self.average.append(reward)
         self.rewardsValue.append(sum(self.average)/len(self.average))
     
+    def getAverageReward(self):
+        """Get the latest average reward value"""
+        if len(self.rewardsValue) < 1:
+            print("length is zero")
+            return 0
+        else:
+            return self.rewardsValue[-1]
+    
     def showEpsilon(self):
+        """Plot epsilon vs training steps"""
         plt.plot(self.epsilonT,self.epsilonValues)
         plt.xlabel('Training steps')
         plt.ylabel('Epsilon')
@@ -110,6 +128,7 @@ class Tracker():
         plt.show()
 
     def showRewards(self):
+        """Plot average reward vs training steps"""
         plt.plot(self.rewardsT,self.rewardsValue)
         plt.xlabel('Training steps')
         plt.ylabel('Average reward')
@@ -117,6 +136,7 @@ class Tracker():
         plt.show()
     
     def showBoth(self):
+        """Plots both average reward and epsilon vs training steps"""
         fig, ax1 = plt.subplots()
         ax1.plot(self.epsilonT,self.epsilonValues, color='tab:blue', label='Epsilon')
         ax1.set_xlabel('Training steps')
@@ -131,6 +151,18 @@ class Tracker():
 
         plt.title('Epsilon and Reward vs Training steps')
         plt.show()
+    
+    def calcEpsilon(self,t,adaptive = False):
+        """Calculates the epsilon value, can be either exponential(default) or adaptive"""
+        if adaptive:
+            epsilon = max(min((150 - abs(self.getAverageReward()+50))/100,0.9),0.1)
+            print(epsilon)
+            return epsilon
+        else:
+            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+                math.exp(-1. * t / EPS_DECAY)
+            return eps_threshold
+
 
 # Class to define the actual agent
 class Agent(object):
@@ -150,8 +182,7 @@ class Agent(object):
     def select_action(self, state, training=False):
         if training is True:
             sample = random.random()
-            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                math.exp(-1. * self.steps_done / EPS_DECAY)
+            eps_threshold = self.tracker.calcEpsilon(self.steps_done, adaptive=True)
             self.steps_done += 1
             self.tracker.addEpsilon(self.steps_done,eps_threshold)
             #print("step:" + str(self.steps_done)+ "->" + "epsilon: " + str(eps_threshold))
