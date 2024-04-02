@@ -1,5 +1,7 @@
 from collections import namedtuple, deque
 import random
+import matplotlib
+import matplotlib.pyplot as plt
 from itertools import count
 
 import math
@@ -20,7 +22,7 @@ EPS_DECAY = 1000
 TAU = 0.005
 LR = 1e-4
 MEMORYCAPACITY = 2000
-EPISODES = 2000
+EPISODES = 4000
 #
 CPU_PATHS     = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3CPU.txt']
 MEMORY_PATHS  = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3MEMORY.txt']
@@ -81,7 +83,55 @@ class DQN(nn.Module):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
         return self.layer3(x)
+
+class Tracker():
+
+    def __init__(self):
+        self.epsilonT = []
+        self.epsilonValues = []
+        self.rewardsT = []
+        self.rewardsValue = []
+        self.average = deque([],50)
     
+    def addEpsilon(self,t, epsilon):
+        self.epsilonT.append(t)
+        self.epsilonValues.append(epsilon)
+    
+    def addReward(self,t,reward):
+        self.rewardsT.append(t)
+        self.average.append(reward)
+        self.rewardsValue.append(sum(self.average)/len(self.average))
+    
+    def showEpsilon(self):
+        plt.plot(self.epsilonT,self.epsilonValues)
+        plt.xlabel('Training steps')
+        plt.ylabel('Epsilon')
+        plt.title('Epsilon')
+        plt.show()
+
+    def showRewards(self):
+        plt.plot(self.rewardsT,self.rewardsValue)
+        plt.xlabel('Training steps')
+        plt.ylabel('Average reward')
+        plt.title('Rewards')
+        plt.show()
+    
+    def showBoth(self):
+        fig, ax1 = plt.subplots()
+        ax1.plot(self.epsilonT,self.epsilonValues, color='tab:blue', label='Epsilon')
+        ax1.set_xlabel('Training steps')
+        ax1.set_ylabel('Epsilon', color='tab:blue')
+
+        ax2 = ax1.twinx()
+        ax2.plot(self.rewardsT,self.rewardsValue, color='tab:red', label='Average Reward')
+        ax2.set_ylabel('Average Reward', color='tab:red')
+
+        lines = ax1.get_lines() + ax2.get_lines()
+        ax1.legend(lines, [line.get_label() for line in lines], loc='upper right')
+
+        plt.title('Epsilon and Reward vs Training steps')
+        plt.show()
+
 # Class to define the actual agent
 class Agent(object):
 
@@ -93,6 +143,8 @@ class Agent(object):
         self.memory = ReplayMemory(MEMORYCAPACITY)
         self.steps_done = 0
         self.current = 0
+        self.tracker = Tracker()
+
     
     # Method to chose an action base on a the current state as input. The action can be random or calculated by the policy_network based on epsilon
     def select_action(self, state, training=False):
@@ -101,15 +153,21 @@ class Agent(object):
             eps_threshold = EPS_END + (EPS_START - EPS_END) * \
                 math.exp(-1. * self.steps_done / EPS_DECAY)
             self.steps_done += 1
-            print("step:" + str(self.steps_done)+ "->" + "epsilon: " + str(eps_threshold))
+            self.tracker.addEpsilon(self.steps_done,eps_threshold)
+            #print("step:" + str(self.steps_done)+ "->" + "epsilon: " + str(eps_threshold))
 
             if sample > eps_threshold:
+                own_decision = True
                 with torch.no_grad():
-                    return self.policy_net(state).max(1).indices.view(1,1)
+                    action = self.policy_net(state).max(1).indices.view(1,1)
+                    return action, own_decision
             else:
-                return torch.tensor([[random.choice(action_space)]], device=DEVICE, dtype=torch.long)
+                own_decision = False
+                action = torch.tensor([[random.choice(action_space)]], device=DEVICE, dtype=torch.long)
+                return action, own_decision
         else:
-            return self.policy_net(state).max(1).indices.view(1,1)
+            action = self.policy_net(state).max(1).indices.view(1,1)
+            return action, True
 
     # Method to optimize the model    
     def optimize_model(self):
@@ -207,10 +265,10 @@ class Agent(object):
         state = State(rsu1_cpu, rsu1_mem, rsu1_pow, rsu2_cpu, rsu2_mem, rsu2_pow, rsu3_cpu, rsu3_mem, rsu3_pow, obu_latency)
         return state
     
-    #Method to perform an action
+    # Method to perform an action
     def doAction(self, action):
         print('Moving to RSU'+ str(action.item()+1))
-        time.sleep(0.5)
+        #time.sleep(0.5)
         self.current = action.item()+1
         new_state = self.getState()
         
@@ -223,9 +281,13 @@ class Agent(object):
         for i_episode in range(EPISODES):
             state = self.getState()
             state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
-            action = self.select_action(state, True)
+            action, own_decision = self.select_action(state, True)
             observation, reward = self.doAction(action)
             reward = torch.tensor([reward], device=DEVICE)
+
+            if own_decision:
+                self.tracker.addReward(self.steps_done,reward.item())
+
 
             next_state = torch.tensor(observation, dtype=torch.float32, device=DEVICE).unsqueeze(0)
 
@@ -254,15 +316,21 @@ class Agent(object):
         self.policy_net.load_state_dict(torch.load('model_weights.pth'))
         self.target_net.load_state_dict(torch.load('model_weights.pth'))
 
+    def plot(self):
+        self.tracker.showBoth()
+        
+
 
 test_agent = Agent()
 test_agent.train()
+test_agent.plot()
 validation_agent = Agent()
 validation_agent.loadWeights()
 for i in range(10):
     state = validation_agent.getState()
     state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
-    print("Decision: RSU"+str(validation_agent.select_action(state).item()+1))
+    print("Decision: RSU"+str(validation_agent.select_action(state)[0].item()+1))
+
 
 
 
