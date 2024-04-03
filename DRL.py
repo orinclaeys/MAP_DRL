@@ -182,7 +182,7 @@ class Agent(object):
     def select_action(self, state, training=False):
         if training is True:
             sample = random.random()
-            eps_threshold = self.tracker.calcEpsilon(self.steps_done, adaptive=True)
+            eps_threshold = self.tracker.calcEpsilon(self.steps_done)
             self.steps_done += 1
             self.tracker.addEpsilon(self.steps_done,eps_threshold)
             #print("step:" + str(self.steps_done)+ "->" + "epsilon: " + str(eps_threshold))
