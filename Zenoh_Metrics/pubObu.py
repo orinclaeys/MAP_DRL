@@ -153,17 +153,17 @@ if __name__ == "__main__":
         ts = datetime.timestamp(dt)
         ip = get_Ip()
         latitude, longitude = extract_location()
-        req1 = requests.get("http://143.129.82.117:5002/")
-        req2 = requests.get("http://143.129.82.113:5002/")
-        req3 = requests.get("http://143.129.82.129:5002/")
+        req1 = requests.get("http://143.129.82.236:5002/")
+        req2 = requests.get("http://143.129.82.238:5002/")
+        req3 = requests.get("http://143.129.82.240:5002/")
 
         latency1 = req1.elapsed.total_seconds()*1000
         latency2 = req2.elapsed.total_seconds()*1000
         latency3 = req3.elapsed.total_seconds()*1000
 
-        dictionary = {"metrics": [{"hostname": "rsu4", "metric": "latency", "value": latency1},
-                                  {"hostname": "rsu6", "metric": "latency", "value": latency2},
-                                  {"hostname": "rsu7", "metric": "latency", "value": latency3},
+        dictionary = {"metrics": [{"hostname": "rsu2", "metric": "latency", "value": latency1},
+                                  {"hostname": "rsu3", "metric": "latency", "value": latency2},
+                                  {"hostname": "rsu5", "metric": "latency", "value": latency3},
                                   {"hostname": f"{host}", "metric": "location", "value": {"latitude": latitude, "longitude": longitude}}
                                   ],
                       "timestamp": ts,
