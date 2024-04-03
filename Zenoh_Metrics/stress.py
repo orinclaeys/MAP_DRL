@@ -9,7 +9,7 @@ class WebsiteTestUser(HttpUser):
 
     def on_start(self):
         """ on_start is called when a Locust start before any task is scheduled """
-        self.clientList = ["http://143.129.82.117:5002/", "http://143.129.82.113:5002/", "http://143.129.82.129:5002/"]
+        self.clientList = ["http://143.129.82.236:5002/", "http://143.129.82.238:5002/", "http://143.129.82.240:5002/"]
         
         if os.path.exists(self.file_path):
             with open(self.file_path, 'r') as file:
