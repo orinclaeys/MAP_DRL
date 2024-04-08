@@ -7,6 +7,7 @@ from itertools import count
 import math
 import re
 import time
+import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,32 +20,28 @@ GAMMA = 0.9
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
-TAU = 0.005
+TAU = 0.01
 LR = 1e-4
 MEMORYCAPACITY = 2000
-EPISODES = 1000
-#
-CPU_PATHS     = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3CPU.txt']
-MEMORY_PATHS  = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3MEMORY.txt']
-POWER_PATHS   = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu1POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu2POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/rsu3POWER.txt']
-LATENCY_PATHS = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/obu1LATENCY.txt']
+EPISODES = 30
 # Environment parameters
 action_space = (0,1,2)
 n_actions = len(action_space)
-n_observations = 10
+n_observations = 7
 latency_desired = 100
 
 # Transition class for storing transitions in the replay-memory
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward'))
 
 # State class for storing a single state, includes CPU, memory and power usage of three RSU's and the latency from the OBU
-State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_power', 'RSU2_cpu', 'RSU2_memory', 'RSU2_power', 'RSU3_cpu', 'RSU3_memory', 'RSU3_power', 'OBU_latency'))
+#State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_power', 'RSU2_cpu', 'RSU2_memory', 'RSU2_power', 'RSU3_cpu', 'RSU3_memory', 'RSU3_power', 'OBU_latency'))
+State = namedtuple('State',('RSU1_cpu','RSU1_power', 'RSU2_cpu', 'RSU2_power', 'RSU3_cpu','RSU3_power','OBU_latency'))
 
 # Functions for reward & punishment calculation
 def calcReward1(latency):
     """Implements the first reward function (see docs)"""
     if latency < latency_desired:
-        reward = 100
+        reward = 5000
     else:
         reward = latency_desired-latency
     return reward
@@ -98,7 +95,7 @@ class Tracker():
         self.epsilonValues = []
         self.rewardsT = []
         self.rewardsValue = []
-        self.average = deque([],50)
+        self.average = deque([],250)
     
     def addEpsilon(self,t, epsilon):
         """Add an epsilon value to the tracker"""
@@ -234,106 +231,88 @@ class Agent(object):
         self.optimizer.step()
 
     # Method to obtain the state of the environment
-    def getState(self):
-        i=1
-        for file_path in CPU_PATHS:
-            with open(file_path, 'r') as file:
-                lines = file.readlines()
-                last_line = lines[-1]
-                match = re.search(r'\d+\.*\d*', last_line)
-                if match:
-                    value = float(match.group())
-                    if i==1:
-                        rsu1_cpu = value
-                    if i==2:
-                        rsu2_cpu = value
-                    if i==3:
-                        rsu3_cpu = value
-            i+=1
-        i=1
-        for file_path in MEMORY_PATHS:
-            with open(file_path, 'r') as file:
-                lines = file.readlines()
-                last_line = lines[-1]
-                match = re.search(r'\d+\.*\d*', last_line)
-                if match:
-                    value = float(match.group())
-                    if i==1:
-                        rsu1_mem = value
-                    if i==2:
-                        rsu2_mem = value
-                    if i==3:
-                        rsu3_mem = value
-            i+=1
-        i=1
-        for file_path in POWER_PATHS:
-            with open(file_path, 'r') as file:
-                lines = file.readlines()
-                last_line = lines[-1]
-                match = re.search(r'\d+\.*\d*', last_line)
-                if match:
-                    value = float(match.group())
-                    if i==1:
-                        rsu1_pow = value
-                    if i==2:
-                        rsu2_pow = value
-                    if i==3:
-                        rsu3_pow = value
-            i+=1
-        i=1
-        for file_path in LATENCY_PATHS:
-            with open(file_path, 'r') as file:
-                lines = file.readlines()
-                last_line = lines[-1]
-                match = re.search(r'\d+\.*\d*', last_line)
-                if match:
-                    value = float(match.group())
-                    if i==1:
-                        obu_latency = value
-        if self.current == 2:
-            obu_latency = 50
+    def getState(self, i):
+        with open('states.csv', 'r') as statefile:
+            csvreader = csv.reader(statefile)
+            rows = list(csvreader)
+            values = rows[i]
+
         
-        state = State(rsu1_cpu, rsu1_mem, rsu1_pow, rsu2_cpu, rsu2_mem, rsu2_pow, rsu3_cpu, rsu3_mem, rsu3_pow, obu_latency)
+        state = State(float(values[0]), float(values[2]), float(values[3]), float(values[5]), float(values[6]), float(values[8]),float(values[9]))
         return state
     
     # Method to perform an action
-    def doAction(self, action):
-        print('Moving to RSU'+ str(action.item()+1))
-        #time.sleep(0.5)
-        self.current = action.item()+1
-        new_state = self.getState()
-        
-
-        reward = calcReward1(new_state.OBU_latency)
+    def doAction(self, action,i):
+        with open('actions.csv') as actionfile:
+            csvreader = csv.reader(actionfile)
+            rows = list(csvreader)
+            values = rows[i]
+        if action[0].item() == 0:
+            latency = float(values[0])
+        elif action[0].item() == 1:
+            latency = float(values[1])
+        else:
+            latency = float(values[2])
+        state = self.getState(i)
+        #new_state = State(state.RSU1_cpu,state.RSU1_memory,state.RSU1_power,state.RSU2_cpu,state.RSU2_memory,state.RSU2_power,state.RSU3_cpu,state.RSU3_memory,state.RSU3_power,latency)
+        new_state = State(state.RSU1_cpu,state.RSU1_power,state.RSU2_cpu,state.RSU2_power,state.RSU3_cpu,state.RSU3_power,latency)
+        reward = calcReward1(latency)
         return new_state, reward
 
     # Method for training the Agent
     def train(self):
-        for i_episode in range(EPISODES):
-            state = self.getState()
-            state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
-            action, own_decision = self.select_action(state, True)
-            observation, reward = self.doAction(action)
-            reward = torch.tensor([reward], device=DEVICE)
 
-            if own_decision:
-                self.tracker.addReward(self.steps_done,reward.item())
+        for episode in range(EPISODES):
+            wrong = 0
+            own_decisions = 0
+            actions = [0,0,0]
+            for i in range(5000):
+                state = self.getState(i)
+                
+                state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
+                action, own_decision = self.select_action(state, True)
+                
+                
+                observation, reward = self.doAction(action,i)
+                
+                if reward < 0:
+                    wrong = wrong + 1
+                if own_decision:
+                    own_decisions = own_decisions + 1
+                    #print(action[0].item())
+                if action[0].item() == 0:
+                    actions[0] = actions[0]+1
+                if action[0].item() == 1:
+                    actions[1] = actions[1]+1
+                if action[0].item() == 2:
+                    actions[2] = actions[2]+1
+                reward = torch.tensor([reward], device=DEVICE)
+
+                if own_decision:
+                    self.tracker.addReward(self.steps_done,reward.item())
 
 
-            next_state = torch.tensor(observation, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+                next_state = torch.tensor(observation, dtype=torch.float32, device=DEVICE).unsqueeze(0)
 
-            # Store transition in memory
-            self.memory.push(state, action, next_state, reward)
+                # Store transition in memory
+                self.memory.push(state, action, next_state, reward)
 
-            # Perform one step of the optimization (on the policy network)
-            self.optimize_model()
+                # Perform one step of the optimization (on the policy network)
+                self.optimize_model()
 
-            # Soft update of the target network's weights
-            target_net_state_dict = self.target_net.state_dict()
-            policy_net_state_dict = self.policy_net.state_dict()
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
-            self.target_net.load_state_dict(target_net_state_dict)
+                # Soft update of the target network's weights
+                target_net_state_dict = self.target_net.state_dict()
+                policy_net_state_dict = self.policy_net.state_dict()
+                for key in policy_net_state_dict:
+                    target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
+                self.target_net.load_state_dict(target_net_state_dict)
+                time.sleep(0.5)
+                
+            with open('results.txt','a') as file:
+                file.write("Episode "+str(episode)+" -> "+str(wrong)+", "+str(own_decision))
+                file.write(actions)
+            print("Episode "+str(episode)+" -> "+str(wrong)+","+str(own_decisions))
+            print(actions)
         
         # After training, save the weights in a file
         self.saveWeights()
@@ -354,13 +333,8 @@ class Agent(object):
 
 test_agent = Agent()
 test_agent.train()
-test_agent.plot()
-validation_agent = Agent()
-validation_agent.loadWeights()
-for i in range(10):
-    state = validation_agent.getState()
-    state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
-    print("Decision: RSU"+str(validation_agent.select_action(state)[0].item()+1))
+
+
 
 
 
