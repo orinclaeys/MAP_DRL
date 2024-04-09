@@ -20,10 +20,10 @@ GAMMA = 0.9
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
-TAU = 0.01
-LR = 1e-4
+TAU = 0.0005
+LR = 1e-6
 MEMORYCAPACITY = 2000
-EPISODES = 30
+EPISODES = 10
 # Environment parameters
 action_space = (0,1,2)
 n_actions = len(action_space)
@@ -261,11 +261,13 @@ class Agent(object):
 
     # Method for training the Agent
     def train(self):
-
+        biggest_score = 0.97
         for episode in range(EPISODES):
             wrong = 0
+            right=0
             own_decisions = 0
             actions = [0,0,0]
+            self.loadWeights()
             for i in range(5000):
                 state = self.getState(i)
                 
@@ -275,8 +277,10 @@ class Agent(object):
                 
                 observation, reward = self.doAction(action,i)
                 
-                if reward < 0:
+                if own_decision and reward < 0:
                     wrong = wrong + 1
+                if own_decision and reward > 0:
+                    right = right +1
                 if own_decision:
                     own_decisions = own_decisions + 1
                     #print(action[0].item())
@@ -306,16 +310,19 @@ class Agent(object):
                 for key in policy_net_state_dict:
                     target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
                 self.target_net.load_state_dict(target_net_state_dict)
-                time.sleep(0.5)
+                
                 
             with open('results.txt','a') as file:
-                file.write("Episode "+str(episode)+" -> "+str(wrong)+", "+str(own_decision))
-                file.write(actions)
-            print("Episode "+str(episode)+" -> "+str(wrong)+","+str(own_decisions))
+                file.write("Episode "+str(episode)+" -> "+str(right/(wrong+right)*100)+"%, "+str(own_decisions)+"\n")
+                file.write("["+str(actions[0])+","+str(actions[1])+","+str(actions[2])+"]\n")
+            print("Episode "+str(episode)+" -> "+str(right/(wrong+right)*100)+"%,"+str(own_decisions))
             print(actions)
+            if ((right/(wrong+right))>biggest_score):
+                biggest_score = (right/(wrong+right))
+                self.saveWeights()
         
         # After training, save the weights in a file
-        self.saveWeights()
+        
 
     # Saving the weights of the neural network
     def saveWeights(self):
@@ -332,7 +339,9 @@ class Agent(object):
 
 
 test_agent = Agent()
+test_agent.loadWeights()
 test_agent.train()
+
 
 
 
