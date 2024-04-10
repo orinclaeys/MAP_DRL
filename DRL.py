@@ -23,7 +23,7 @@ EPS_DECAY = 1000
 TAU = 0.0005
 LR = 1e-6
 MEMORYCAPACITY = 2000
-EPISODES = 10
+EPISODES = 30
 # Environment parameters
 action_space = (0,1,2)
 n_actions = len(action_space)
