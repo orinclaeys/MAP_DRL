@@ -20,22 +20,24 @@ GAMMA = 0.9
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
-TAU = 0.0005
-LR = 1e-6
-MEMORYCAPACITY = 2000
-EPISODES = 30
+TAU = 0.001
+LR = 1e-4
+MEMORYCAPACITY = 4000
+EPISODES = 5
 # Environment parameters
 action_space = (0,1,2)
 n_actions = len(action_space)
 n_observations = 7
 latency_desired = 100
-
+# File paths
+action_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T1.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T2.csv"]
+states_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T1.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T2.csv"]
 # Transition class for storing transitions in the replay-memory
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward'))
 
 # State class for storing a single state, includes CPU, memory and power usage of three RSU's and the latency from the OBU
-#State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_power', 'RSU2_cpu', 'RSU2_memory', 'RSU2_power', 'RSU3_cpu', 'RSU3_memory', 'RSU3_power', 'OBU_latency'))
-State = namedtuple('State',('RSU1_cpu','RSU1_power', 'RSU2_cpu', 'RSU2_power', 'RSU3_cpu','RSU3_power','OBU_latency'))
+#State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_disk','RSU1_power', 'RSU2_cpu', 'RSU2_memory','RSU2_disk', 'RSU2_power', 'RSU3_cpu', 'RSU3_memory','RSU3_disk', 'RSU3_power', 'Current_choice'))
+State = namedtuple('State',('RSU1_cpu','RSU1_power', 'RSU2_cpu', 'RSU2_power', 'RSU3_cpu','RSU3_power','Current_choice'))
 
 # Functions for reward & punishment calculation
 def calcReward1(latency):
@@ -48,9 +50,12 @@ def calcReward1(latency):
 
 def calcReward2(oldLatency, newLatency, oldApplication, newApplication):
     """Implements the second reward function (see docs)"""
-    reward = oldLatency - newLatency
-    if oldLatency < latency_desired and oldApplication!=newApplication:
-        reward = -50
+    if newLatency < latency_desired:
+        reward = 5000
+        if oldLatency < latency_desired and oldApplication!=newApplication:
+            reward = 2500
+    else:
+        reward = latency_desired-newLatency
     return reward
 
 # ReplayMemory class
@@ -177,6 +182,7 @@ class Agent(object):
     
     # Method to chose an action base on a the current state as input. The action can be random or calculated by the policy_network based on epsilon
     def select_action(self, state, training=False):
+
         if training is True:
             sample = random.random()
             eps_threshold = self.tracker.calcEpsilon(self.steps_done)
@@ -231,19 +237,20 @@ class Agent(object):
         self.optimizer.step()
 
     # Method to obtain the state of the environment
-    def getState(self, i):
-        with open('states.csv', 'r') as statefile:
+    def getState(self, i, path_s):
+        with open(path_s, 'r') as statefile:
             csvreader = csv.reader(statefile)
             rows = list(csvreader)
             values = rows[i]
 
         
-        state = State(float(values[0]), float(values[2]), float(values[3]), float(values[5]), float(values[6]), float(values[8]),float(values[9]))
+        #state = State(float(values[0]),float(values[1]), float(values[2]), float(values[3]),float(values[4]), float(values[5]), float(values[6]),float(values[7]), float(values[8]), float(values[9]), float(values[10]), float(values[11]), float(values[12]))
+        state = State(float(values[0]),float(values[3]),float(values[4]),float(values[7]),float(values[8]),float(values[11]),float(values[12]))
         return state
     
     # Method to perform an action
-    def doAction(self, action,i):
-        with open('actions.csv') as actionfile:
+    def doAction(self, action,i,path_a,path_s):
+        with open(path_a,'r') as actionfile:
             csvreader = csv.reader(actionfile)
             rows = list(csvreader)
             values = rows[i]
@@ -253,34 +260,41 @@ class Agent(object):
             latency = float(values[1])
         else:
             latency = float(values[2])
-        state = self.getState(i)
-        #new_state = State(state.RSU1_cpu,state.RSU1_memory,state.RSU1_power,state.RSU2_cpu,state.RSU2_memory,state.RSU2_power,state.RSU3_cpu,state.RSU3_memory,state.RSU3_power,latency)
-        new_state = State(state.RSU1_cpu,state.RSU1_power,state.RSU2_cpu,state.RSU2_power,state.RSU3_cpu,state.RSU3_power,latency)
-        reward = calcReward1(latency)
+        state = self.getState(i,path_s)
+        old_application = state.Current_choice
+        #new_state = State(state.RSU1_cpu,state.RSU1_memory,state.RSU1_disk,state.RSU1_power,state.RSU2_cpu,state.RSU2_memory,state.RSU2_disk,state.RSU2_power,state.RSU3_cpu,state.RSU3_memory,state.RSU3_disk,state.RSU3_power,action[0].item())
+        new_state = State(state.RSU1_cpu,state.RSU1_power,state.RSU2_cpu,state.RSU2_power,state.RSU3_cpu,state.RSU3_power,action[0].item())
+        #reward = calcReward1(latency)
+        reward = calcReward2(float(values[int(old_application)]),latency,old_application,new_state.Current_choice)
         return new_state, reward
 
     # Method for training the Agent
     def train(self):
-        biggest_score = 0.97
         for episode in range(EPISODES):
+            #index = episode%len(action_training)
+            index = 1
+            path_a = action_training[index]
+            path_s = states_training[index]
             wrong = 0
             right=0
             own_decisions = 0
             actions = [0,0,0]
-            self.loadWeights()
             for i in range(5000):
-                state = self.getState(i)
-                
+                state = self.getState(i, path_s)
                 state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
+                
                 action, own_decision = self.select_action(state, True)
                 
                 
-                observation, reward = self.doAction(action,i)
+                observation, reward = self.doAction(action,i,path_a,path_s)
                 
                 if own_decision and reward < 0:
                     wrong = wrong + 1
                 if own_decision and reward > 0:
-                    right = right +1
+                    if reward > 3000:
+                        right = right +1
+                    else:
+                        right = right +0.5
                 if own_decision:
                     own_decisions = own_decisions + 1
                     #print(action[0].item())
@@ -310,18 +324,24 @@ class Agent(object):
                 for key in policy_net_state_dict:
                     target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
                 self.target_net.load_state_dict(target_net_state_dict)
-                
-                
-            with open('results.txt','a') as file:
-                file.write("Episode "+str(episode)+" -> "+str(right/(wrong+right)*100)+"%, "+str(own_decisions)+"\n")
-                file.write("["+str(actions[0])+","+str(actions[1])+","+str(actions[2])+"]\n")
-            print("Episode "+str(episode)+" -> "+str(right/(wrong+right)*100)+"%,"+str(own_decisions))
-            print(actions)
-            if ((right/(wrong+right))>biggest_score):
-                biggest_score = (right/(wrong+right))
-                self.saveWeights()
-        
+            print(str(right/(wrong+right)*100)+"%")
+                   
         # After training, save the weights in a file
+        self.saveWeights()
+
+    def validation(self):
+        path_s = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/states_V1.csv"
+        path_a = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/actions_V1.csv"
+        self.loadWeights()
+        correct = 0
+        for i in range(5000):
+            state = self.getState(i, path_s)    
+            state = torch.tensor(state, dtype = torch.float32,  device=DEVICE).unsqueeze(0)
+            action, own_decision = self.select_action(state, False)
+            observation, reward = self.doAction(action,i,path_a,path_s)
+            if reward>0:
+                correct = correct + 1
+        print("Result: "+str(correct/50)+"%")
         
 
     # Saving the weights of the neural network
@@ -339,8 +359,12 @@ class Agent(object):
 
 
 test_agent = Agent()
-test_agent.loadWeights()
-test_agent.train()
+#test_agent.loadWeights()
+for i in range(30):
+    test_agent.train()
+    test_agent.validation()
+    test_agent.loadWeights()
+
 
 
 
