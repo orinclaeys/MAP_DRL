@@ -1,11 +1,14 @@
 import csv
+import re
 
+CPU_PATHS          = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5CPU.txt']
+MEMORY_PATHS       = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5MEMORY.txt']
+POWER_PATHS        = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5POWER.txt']
+LATENCY_PATHS      = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2LATENCY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3LATENCY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5LATENCY.txt']
+DISK_PATHS         = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2STORAGE.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3STORAGE.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5STORAGE.txt']
+RSU_LOCATION_PATHS = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2LOCATION.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3LOCATION.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5LOCATION.txt']
+OBU_LOCATION_PATHS = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu6LOCATION.txt']
 
-CPU_PATHS     = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2CPU.txt', 'C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3CPU.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5CPU.txt']
-MEMORY_PATHS  = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3MEMORY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5MEMORY.txt']
-POWER_PATHS   = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3POWER.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5POWER.txt']
-LATENCY_PATHS = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2LATENCY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3LATENCY.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5LATENCY.txt']
-DISK_PATHS = ['C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu2STORAGE.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu3STORAGE.txt','C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/data_files/data_set1/rsu5STORAGE.txt']
 
 with open(LATENCY_PATHS[0], 'r') as file:
     rsu2_latencys = file.readlines()
@@ -44,6 +47,15 @@ with open(POWER_PATHS[1], 'r') as file:
 with open(POWER_PATHS[2], 'r') as file:
     rsu5_pows = file.readlines()
 
+with open(RSU_LOCATION_PATHS[0], 'r') as file:
+    rsu2_locs = file.readlines()
+with open(RSU_LOCATION_PATHS[1], 'r') as file:
+    rsu3_locs = file.readlines()
+with open(RSU_LOCATION_PATHS[2], 'r') as file:
+    rsu5_locs = file.readlines()
+with open(OBU_LOCATION_PATHS[0], 'r') as file:
+    obu_locs = file.readlines()
+
 for i in range(size):
     line_rsu2 = rsu2_latencys[i]
     line_rsu3 = rsu3_latencys[i]
@@ -61,40 +73,56 @@ for i in range(size):
         rsu2_mem = rsu2_mems[j].split()
         rsu2_pow = rsu2_pows[j].split()
         rsu2_disk = rsu2_disks[j].split()
+        rsu2_loc = re.findall(r"[-+]?\d*\.\d+|\d+", rsu2_locs[j])
         time = float(rsu2_cpu[0])
         if time>t-2 and time<t+2:
             rsu2_cpu_value = rsu2_cpu[1]
             rsu2_mem_value = rsu2_mem[1]
             rsu2_pow_value = rsu2_pow[1]
             rsu2_disk_value = rsu2_disk[1]
+            rsu2_lat_value = float(rsu2_loc[1])
+            rsu2_long_value= float(rsu2_loc[2])
     
     for j in range(len(rsu3_cpus)):
         rsu3_cpu = rsu3_cpus[j].split()
         rsu3_mem = rsu3_mems[j].split()
         rsu3_pow = rsu3_pows[j].split()
         rsu3_disk = rsu3_disks[j].split()
+        rsu3_loc = re.findall(r"[-+]?\d*\.\d+|\d+", rsu3_locs[j])
         time = float(rsu3_cpu[0])
         if time>t-2 and time<t+2:
             rsu3_cpu_value = rsu3_cpu[1]
             rsu3_mem_value = rsu3_mem[1]
             rsu3_pow_value = rsu3_pow[1]
             rsu3_disk_value = rsu3_disk[1]
+            rsu3_lat_value = float(rsu3_loc[1])
+            rsu3_long_value= float(rsu3_loc[2])
 
     for j in range(len(rsu5_cpus)):
         rsu5_cpu = rsu5_cpus[j].split()
         rsu5_mem = rsu5_mems[j].split()
         rsu5_pow = rsu5_pows[j].split()
         rsu5_disk = rsu5_disks[j].split()
+        rsu5_loc = re.findall(r"[-+]?\d*\.\d+|\d+", rsu5_locs[j])
         time = float(rsu5_cpu[0])
         if time>t-2 and time<t+2:
             rsu5_cpu_value = rsu5_cpu[1]
             rsu5_mem_value = rsu5_mem[1]
             rsu5_pow_value = rsu5_pow[1]
             rsu5_disk_value = rsu5_disk[1]
+            rsu5_lat_value = float(rsu5_loc[1])
+            rsu5_long_value= float(rsu5_loc[2])
+    
+    for j in range(len(obu_locs)):
+        obu_loc = re.findall(r"[-+]?\d*\.\d+|\d+", obu_locs[j])
+        time  = float(obu_loc[0])
+        if time>t-2 and time<t+2:
+            obu_lat_value = float(obu_loc[1])
+            obu_long_value= float(obu_loc[2])
 
-    state2 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,0]
-    state3 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,1]
-    state5 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,2] 
+    state2 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu2_lat_value,rsu2_long_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu3_lat_value,rsu3_long_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,rsu5_lat_value,rsu5_long_value,obu_long_value,obu_lat_value,0]
+    state3 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu2_lat_value,rsu2_long_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu3_lat_value,rsu3_long_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,rsu5_lat_value,rsu5_long_value,obu_long_value,obu_lat_value,1]
+    state5 = [rsu2_cpu_value,rsu2_mem_value,rsu2_disk_value,rsu2_pow_value,rsu2_lat_value,rsu2_long_value,rsu3_cpu_value,rsu3_mem_value,rsu3_disk_value,rsu3_pow_value,rsu3_lat_value,rsu3_long_value,rsu5_cpu_value,rsu5_mem_value,rsu5_disk_value,rsu5_pow_value,rsu5_lat_value,rsu5_long_value,obu_long_value,obu_lat_value,2] 
 
     action = [rsu2_latency,rsu3_latency,rsu5_latency]
 

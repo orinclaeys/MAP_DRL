@@ -1,12 +1,9 @@
 from collections import namedtuple, deque
 import random
-import matplotlib
 import matplotlib.pyplot as plt
 from itertools import count
 
 import math
-import re
-import time
 import csv
 import torch
 import torch.nn as nn
@@ -30,12 +27,13 @@ n_actions = len(action_space)
 n_observations = 7
 latency_desired = 100
 # File paths
-action_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T1.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T2.csv"]
-states_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T1.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T2.csv"]
+action_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T4.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/actions_T4.csv"]
+states_training = ["C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T4.csv","C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Training/states_T4.csv"]
 # Transition class for storing transitions in the replay-memory
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward'))
 
 # State class for storing a single state, includes CPU, memory and power usage of three RSU's and the latency from the OBU
+#State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_disk','RSU1_power','RSU1_Long','RSU1_Lat','RSU2_cpu', 'RSU2_memory','RSU2_disk', 'RSU2_power','RSU2_Long','RSU2_Lat', 'RSU3_cpu', 'RSU3_memory','RSU3_disk', 'RSU3_power','RSU3_Long','RSU3_Lat','OBU_Long','OBU_Lat', 'Current_choice'))
 #State = namedtuple('State',('RSU1_cpu','RSU1_memory','RSU1_disk','RSU1_power', 'RSU2_cpu', 'RSU2_memory','RSU2_disk', 'RSU2_power', 'RSU3_cpu', 'RSU3_memory','RSU3_disk', 'RSU3_power', 'Current_choice'))
 State = namedtuple('State',('RSU1_cpu','RSU1_power', 'RSU2_cpu', 'RSU2_power', 'RSU3_cpu','RSU3_power','Current_choice'))
 
@@ -53,7 +51,7 @@ def calcReward2(oldLatency, newLatency, oldApplication, newApplication):
     if newLatency < latency_desired:
         reward = 5000
         if oldLatency < latency_desired and oldApplication!=newApplication:
-            reward = 2500
+            reward = 1
     else:
         reward = latency_desired-newLatency
     return reward
@@ -92,79 +90,6 @@ class DQN(nn.Module):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
         return self.layer3(x)
-
-class Tracker():
-
-    def __init__(self):
-        self.epsilonT = []
-        self.epsilonValues = []
-        self.rewardsT = []
-        self.rewardsValue = []
-        self.average = deque([],250)
-    
-    def addEpsilon(self,t, epsilon):
-        """Add an epsilon value to the tracker"""
-        self.epsilonT.append(t)
-        self.epsilonValues.append(epsilon)
-    
-    def addReward(self,t,reward):
-        """Add a reward value to the tracker"""
-        self.rewardsT.append(t)
-        self.average.append(reward)
-        self.rewardsValue.append(sum(self.average)/len(self.average))
-    
-    def getAverageReward(self):
-        """Get the latest average reward value"""
-        if len(self.rewardsValue) < 1:
-            print("length is zero")
-            return 0
-        else:
-            return self.rewardsValue[-1]
-    
-    def showEpsilon(self):
-        """Plot epsilon vs training steps"""
-        plt.plot(self.epsilonT,self.epsilonValues)
-        plt.xlabel('Training steps')
-        plt.ylabel('Epsilon')
-        plt.title('Epsilon')
-        plt.show()
-
-    def showRewards(self):
-        """Plot average reward vs training steps"""
-        plt.plot(self.rewardsT,self.rewardsValue)
-        plt.xlabel('Training steps')
-        plt.ylabel('Average reward')
-        plt.title('Rewards')
-        plt.show()
-    
-    def showBoth(self):
-        """Plots both average reward and epsilon vs training steps"""
-        fig, ax1 = plt.subplots()
-        ax1.plot(self.epsilonT,self.epsilonValues, color='tab:blue', label='Epsilon')
-        ax1.set_xlabel('Training steps')
-        ax1.set_ylabel('Epsilon', color='tab:blue')
-
-        ax2 = ax1.twinx()
-        ax2.plot(self.rewardsT,self.rewardsValue, color='tab:red', label='Average Reward')
-        ax2.set_ylabel('Average Reward', color='tab:red')
-
-        lines = ax1.get_lines() + ax2.get_lines()
-        ax1.legend(lines, [line.get_label() for line in lines], loc='upper right')
-
-        plt.title('Epsilon and Reward vs Training steps')
-        plt.show()
-    
-    def calcEpsilon(self,t,adaptive = False):
-        """Calculates the epsilon value, can be either exponential(default) or adaptive"""
-        if adaptive:
-            epsilon = max(min((150 - abs(self.getAverageReward()+50))/100,0.9),0.1)
-            print(epsilon)
-            return epsilon
-        else:
-            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                math.exp(-1. * t / EPS_DECAY)
-            return eps_threshold
-
 
 # Class to define the actual agent
 class Agent(object):
@@ -243,9 +168,9 @@ class Agent(object):
             rows = list(csvreader)
             values = rows[i]
 
-        
-        #state = State(float(values[0]),float(values[1]), float(values[2]), float(values[3]),float(values[4]), float(values[5]), float(values[6]),float(values[7]), float(values[8]), float(values[9]), float(values[10]), float(values[11]), float(values[12]))
-        state = State(float(values[0]),float(values[3]),float(values[4]),float(values[7]),float(values[8]),float(values[11]),float(values[12]))
+        #state = State(float(values[0]),float(values[1]), float(values[2]), float(values[3]),float(values[4]), float(values[5]), float(values[6]),float(values[7]), float(values[8]), float(values[9]), float(values[10]), float(values[11]), float(values[12]), float(values[13]), float(values[14]), float(values[15]), float(values[16]), float(values[17]), float(values[18]), float(values[19]), float(values[20]))
+        #state = State(float(values[0]),float(values[1]), float(values[2]), float(values[3]),float(values[6]), float(values[7]), float(values[8]),float(values[9]), float(values[12]), float(values[13]), float(values[14]), float(values[15]), float(values[20]))
+        state = State(float(values[0]),float(values[3]),float(values[6]),float(values[9]),float(values[12]),float(values[15]),float(values[20]))
         return state
     
     # Method to perform an action
@@ -262,6 +187,7 @@ class Agent(object):
             latency = float(values[2])
         state = self.getState(i,path_s)
         old_application = state.Current_choice
+        #new_state = State(state.RSU1_cpu,state.RSU1_memory,state.RSU1_disk,state.RSU1_power,state.RSU1_Long,state.RSU1_Lat,state.RSU2_cpu,state.RSU2_memory,state.RSU2_disk,state.RSU2_power,state.RSU2_Long,state.RSU2_Lat,state.RSU3_cpu,state.RSU3_memory,state.RSU3_disk,state.RSU3_power,state.RSU3_Long,state.RSU3_Lat,state.OBU_Long,state.OBU_Lat,action[0].item())
         #new_state = State(state.RSU1_cpu,state.RSU1_memory,state.RSU1_disk,state.RSU1_power,state.RSU2_cpu,state.RSU2_memory,state.RSU2_disk,state.RSU2_power,state.RSU3_cpu,state.RSU3_memory,state.RSU3_disk,state.RSU3_power,action[0].item())
         new_state = State(state.RSU1_cpu,state.RSU1_power,state.RSU2_cpu,state.RSU2_power,state.RSU3_cpu,state.RSU3_power,action[0].item())
         #reward = calcReward1(latency)
@@ -277,6 +203,7 @@ class Agent(object):
             path_s = states_training[index]
             wrong = 0
             right=0
+            transitions = 0
             own_decisions = 0
             actions = [0,0,0]
             for i in range(5000):
@@ -292,9 +219,10 @@ class Agent(object):
                     wrong = wrong + 1
                 if own_decision and reward > 0:
                     if reward > 3000:
-                        right = right +1
+                        right = right + 1
                     else:
-                        right = right +0.5
+                        right = right + 1
+                        transitions = transitions + 1
                 if own_decision:
                     own_decisions = own_decisions + 1
                     #print(action[0].item())
@@ -324,14 +252,14 @@ class Agent(object):
                 for key in policy_net_state_dict:
                     target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1-TAU)
                 self.target_net.load_state_dict(target_net_state_dict)
-            print(str(right/(wrong+right)*100)+"%")
+            print(str(right/(wrong+right)*100)+"%, Transitions:"+str(transitions))
                    
         # After training, save the weights in a file
         self.saveWeights()
 
     def validation(self):
-        path_s = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/states_V1.csv"
-        path_a = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/actions_V1.csv"
+        path_s = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/states_V4.csv"
+        path_a = "C:/Users/Orin Claeys/Documents/MAP_DRL_Code/MAP_DRL/training_data/Validation/actions_V4.csv"
         self.loadWeights()
         correct = 0
         for i in range(5000):
@@ -349,21 +277,19 @@ class Agent(object):
         torch.save(self.policy_net.state_dict(), 'model_weights.pth')
 
     # Loading the weights from a file
-    def loadWeights(self):
-        self.policy_net.load_state_dict(torch.load('model_weights.pth'))
-        self.target_net.load_state_dict(torch.load('model_weights.pth'))
+    def loadWeights(self, path='model_weights.pth'):
+        self.policy_net.load_state_dict(torch.load(path))
+        self.target_net.load_state_dict(torch.load(path))
 
-    def plot(self):
-        self.tracker.showBoth()
         
 
-
-test_agent = Agent()
-#test_agent.loadWeights()
-for i in range(30):
-    test_agent.train()
-    test_agent.validation()
+if __name__ == "__main__":
+    test_agent = Agent()
     test_agent.loadWeights()
+    for i in range(10):
+        test_agent.train()
+        test_agent.validation()
+        test_agent.loadWeights()
 
 
 
