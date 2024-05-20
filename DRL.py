@@ -102,7 +102,6 @@ class Agent(object):
         self.memory = ReplayMemory(MEMORYCAPACITY)
         self.steps_done = 0
         self.current = 0
-        self.tracker = Tracker()
 
     
     # Method to chose an action base on a the current state as input. The action can be random or calculated by the policy_network based on epsilon
